@@ -1,52 +1,107 @@
-const express = require('express')
-const cors = require('cors')
-const app = express()
-const port = 3000
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const express = require("express");
+const cors = require("cors");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
-app.use(cors())
-app.use(express.json())
+const app = express();
+const port = process.env.PORT || 3000;
 
-app.get('/', (req, res) => {
-  res.send('Server is running')
-})
+// Middleware
+app.use(cors());
+app.use(express.json());
 
+// MongoDB URI
+const uri =
+  "mongodb+srv://homenest-user:MLruA28AS82UtPHf@cluster0.urdzboc.mongodb.net/?appName=Cluster0";
 
-const uri = "mongodb+srv://homenest-user:MLruA28AS82UtPHf@cluster0.urdzboc.mongodb.net/?appName=Cluster0";
-
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+// MongoDB client setup
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
     strict: true,
     deprecationErrors: true,
-  }
+  },
 });
 
+// Root route
+app.get("/", (req, res) => {
+  res.send("🏠 HomeNest Server is Running...");
+});
+
+// MongoDB connection & routes
 async function run() {
   try {
     await client.connect();
+    const db = client.db("homenest");
+    const propertyCollection = db.collection("properties");
 
-    const db = client.db('homenest')
-    const propertyCollection = db.collection('properties')
+    console.log("✅ MongoDB Connected Successfully!");
 
-    app.get('/properties', async(req, res) => {
-      const result = await propertyCollection.find().toArray()
-      res.send(result)
-    })
+    // ✅ GET all properties (Newest first)
+    app.get("/properties", async (req, res) => {
+      const properties = await propertyCollection
+        .find()
+        .sort({ createdAt: -1 })
+        .toArray();
+      res.send(properties);
+    });
 
+    // ✅ GET 6 recent properties
+    app.get("/properties/recent", async (req, res) => {
+      const recent = await propertyCollection
+        .find()
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .toArray();
+      res.send(recent);
+    });
 
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+    // ✅ GET single property by ID
+    app.get("/properties/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await propertyCollection.findOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
+
+    // ✅ POST (Add Property)
+    app.post("/properties", async (req, res) => {
+      try {
+        const data = req.body;
+        const newProperty = {
+          ...data,
+          createdAt: new Date(),
+        };
+        const result = await propertyCollection.insertOne(newProperty);
+        res.status(201).send(result);
+      } catch (error) {
+        res.status(500).send({ message: "Failed to add property", error });
+      }
+    });
+
+    // ✅ DELETE property
+    app.delete("/properties/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await propertyCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send(result);
+    });
+
+    // ✅ UPDATE property
+    app.put("/properties/:id", async (req, res) => {
+      const id = req.params.id;
+      const updatedData = req.body;
+      const result = await propertyCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updatedData }
+      );
+      res.send(result);
+    });
+  } catch (error) {
+    console.error("❌ Database Connection Error:", error);
   }
 }
+
 run().catch(console.dir);
 
-
-
+// Start server
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`)
-})
+  console.log(`🚀 Server is running on port ${port}`);
+});
