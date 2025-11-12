@@ -58,7 +58,8 @@ async function run() {
     // ✅ GET single property by ID
     app.get("/properties/:id", async (req, res) => {
       const id = req.params.id;
-      const result = await propertyCollection.findOne({ _id: new ObjectId(id) });
+       const query = { _id: new ObjectId(id) };
+      const result = await propertyCollection.findOne(query);
       res.send(result);
     });
 
@@ -80,18 +81,27 @@ async function run() {
     // ✅ DELETE property
     app.delete("/properties/:id", async (req, res) => {
       const id = req.params.id;
-      const result = await propertyCollection.deleteOne({ _id: new ObjectId(id) });
+      const query = { _id: new ObjectId(id) };
+      const result = await propertyCollection.deleteOne(query);
       res.send(result);
     });
+
+    // ✅ Filter by logged-in user email
+   app.get("/properties", async (req, res) => {
+      const email = req.query.email;
+      let query = {};
+      if (email) query = { userEmail: email };
+      const result = await propertyCollection.find(query).toArray();
+      res.send(result);
+     });
 
     // ✅ UPDATE property
     app.put("/properties/:id", async (req, res) => {
       const id = req.params.id;
       const updatedData = req.body;
-      const result = await propertyCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updatedData }
-      );
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = { $set: updatedData };
+      const result = await propertyCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
   } catch (error) {
