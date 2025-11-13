@@ -27,7 +27,6 @@ app.get("/", (req, res) => {
   res.send("🏠 HomeNest Server is Running...");
 });
 
-// MongoDB connection & routes
 async function run() {
   try {
     await client.connect();
@@ -36,13 +35,26 @@ async function run() {
 
     console.log("✅ MongoDB Connected Successfully!");
 
-    // ✅ GET all properties (Newest first)
+    // ✅ GET all properties (supports sort + email filter)
     app.get("/properties", async (req, res) => {
-      const properties = await propertyCollection
-        .find()
-        .sort({ createdAt: -1 })
-        .toArray();
-      res.send(properties);
+      const email = req.query.email;
+      const sortBy = req.query.sortBy; // e.g. price, category, location
+      const order = req.query.order === "desc" ? -1 : 1;
+
+      let query = {};
+      if (email) query = { userEmail: email };
+
+      let cursor = propertyCollection.find(query);
+
+      // ✅ Apply sorting dynamically
+      if (sortBy) {
+        cursor = cursor.sort({ [sortBy]: order });
+      } else {
+        cursor = cursor.sort({ createdAt: -1 }); // default: newest first
+      }
+
+      const result = await cursor.toArray();
+      res.send(result);
     });
 
     // ✅ GET 6 recent properties
@@ -58,7 +70,7 @@ async function run() {
     // ✅ GET single property by ID
     app.get("/properties/:id", async (req, res) => {
       const id = req.params.id;
-       const query = { _id: new ObjectId(id) };
+      const query = { _id: new ObjectId(id) };
       const result = await propertyCollection.findOne(query);
       res.send(result);
     });
@@ -86,15 +98,6 @@ async function run() {
       res.send(result);
     });
 
-    // ✅ Filter by logged-in user email
-   app.get("/properties", async (req, res) => {
-      const email = req.query.email;
-      let query = {};
-      if (email) query = { userEmail: email };
-      const result = await propertyCollection.find(query).toArray();
-      res.send(result);
-     });
-
     // ✅ UPDATE property
     app.put("/properties/:id", async (req, res) => {
       const id = req.params.id;
@@ -104,6 +107,9 @@ async function run() {
       const result = await propertyCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
+
+    await client.db("admin").command({ ping: 1 });
+    console.log("🚀 Pinged your deployment. MongoDB Connected!");
   } catch (error) {
     console.error("❌ Database Connection Error:", error);
   }
