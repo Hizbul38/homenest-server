@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
-import { MongoClient, ServerApiVersion, ObjectId } from "mongodb";
 import dotenv from "dotenv";
+import { MongoClient, ServerApiVersion, ObjectId } from "mongodb";
 
 dotenv.config();
 
@@ -24,157 +24,111 @@ const client = new MongoClient(uri, {
   },
 });
 
-app.get("/search", (req, res) => {
-  const { q } = req.query;
-  if (!q) return res.status(400).json({ error: "Missing search query" });
-  res.json({ result: `You searched for: ${q}` });
-});
+let propertyCollection;
 
-// Root route
+// ✅ Connect to MongoDB once at startup
+(async () => {
+  try {
+    await client.connect();
+    const db = client.db("homenest");
+    propertyCollection = db.collection("properties");
+    console.log("✅ MongoDB Connected Successfully!");
+  } catch (error) {
+    console.error("❌ Database Connection Error:", error);
+  }
+})();
+
+// ✅ Root route
 app.get("/", (req, res) => {
   res.send("HomeNest Server is Running...");
 });
 
-async function run() {
+// ✅ GET all properties (Supports: Search + Sort + Email Filter)
+app.get("/properties", async (req, res) => {
   try {
-    await client.connect();
-    const db = client.db("homenest");
-    const propertyCollection = db.collection("properties");
+    const { email, sortBy, order, search } = req.query;
+    const sortOrder = order === "desc" ? -1 : 1;
+    const query = {};
 
-    console.log("✅ MongoDB Connected Successfully!");
+    if (email) query.userEmail = email;
+    if (search) query.propertyName = { $regex: search, $options: "i" };
 
-    // ✅ GET all properties (Supports: Search + Sort + Email Filter)
-    app.get("/properties", async (req, res) => {
-      try {
-        const email = req.query.email;
-        const sortBy = req.query.sortBy; // e.g. price, category, location
-        const order = req.query.order === "desc" ? -1 : 1;
-        const search = req.query.search || ""; // ✅ Search keyword
+    let cursor = propertyCollection.find(query);
 
-        let query = {};
+    if (sortBy) cursor = cursor.sort({ [sortBy]: sortOrder });
+    else cursor = cursor.sort({ createdAt: -1 });
 
-        // ✅ Filter by logged-in user email
-        if (email) {
-          query.userEmail = email;
-        }
-
-        // ✅ Search by Property Name (Case-insensitive)
-        if (search) {
-          query.propertyName = { $regex: search, $options: "i" };
-        }
-
-        let cursor = propertyCollection.find(query);
-
-        // ✅ Apply sorting dynamically
-        if (sortBy) {
-          cursor = cursor.sort({ [sortBy]: order });
-        } else {
-          cursor = cursor.sort({ createdAt: -1 }); // Default: newest first
-        }
-
-        const result = await cursor.toArray();
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to fetch properties", error: error.message });
-      }
-    });
-
-    // ✅ GET 6 recent properties
-    app.get("/properties/recent", async (req, res) => {
-      try {
-        const recent = await propertyCollection
-          .find()
-          .sort({ createdAt: -1 })
-          .limit(6)
-          .toArray();
-        res.send(recent);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to fetch recent properties", error: error.message });
-      }
-    });
-
-    // ✅ GET single property by ID
-    app.get("/properties/:id", async (req, res) => {
-      try {
-        const id = req.params.id;
-        const query = { _id: new ObjectId(id) };
-        const result = await propertyCollection.findOne(query);
-        
-        if (!result) {
-          return res.status(404).send({ message: "Property not found" });
-        }
-        
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to fetch property", error: error.message });
-      }
-    });
-
-    // ✅ POST (Add Property)
-    app.post("/properties", async (req, res) => {
-      try {
-        const data = req.body;
-        const newProperty = {
-          ...data,
-          createdAt: new Date(),
-        };
-        const result = await propertyCollection.insertOne(newProperty);
-        res.status(201).send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to add property", error: error.message });
-      }
-    });
-
-    // ✅ DELETE property
-    app.delete("/properties/:id", async (req, res) => {
-      try {
-        const id = req.params.id;
-        const query = { _id: new ObjectId(id) };
-        const result = await propertyCollection.deleteOne(query);
-        
-        if (result.deletedCount === 0) {
-          return res.status(404).send({ message: "Property not found" });
-        }
-        
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to delete property", error: error.message });
-      }
-    });
-
-    // ✅ UPDATE property
-    app.put("/properties/:id", async (req, res) => {
-      try {
-        const id = req.params.id;
-        const updatedData = req.body;
-        const filter = { _id: new ObjectId(id) };
-        const updateDoc = { $set: updatedData };
-        const result = await propertyCollection.updateOne(filter, updateDoc);
-        
-        if (result.matchedCount === 0) {
-          return res.status(404).send({ message: "Property not found" });
-        }
-        
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: "Failed to update property", error: error.message });
-      }
-    });
-
-    console.log("🚀 Pinged your deployment. MongoDB Connected!");
+    const result = await cursor.toArray();
+    res.send(result);
   } catch (error) {
-    console.error("❌ Database Connection Error:", error);
+    res.status(500).send({ message: "Error fetching properties", error });
   }
-}
+});
 
-run().catch(console.dir);
+// ✅ GET 6 recent properties
+app.get("/properties/recent", async (req, res) => {
+  try {
+    const recent = await propertyCollection
+      .find()
+      .sort({ createdAt: -1 })
+      .limit(6)
+      .toArray();
+    res.send(recent);
+  } catch (error) {
+    res.status(500).send({ message: "Error fetching recent properties", error });
+  }
+});
 
-// For local development
-if (process.env.NODE_ENV !== "production") {
-  app.listen(port, () => {
-    console.log(`🚀 Server is running on port ${port}`);
-  });
-}
+// ✅ GET single property by ID
+app.get("/properties/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await propertyCollection.findOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Error fetching property", error });
+  }
+});
 
-// Export for Vercel
-export default app;
+// ✅ POST (Add Property)
+app.post("/properties", async (req, res) => {
+  try {
+    const data = req.body;
+    const newProperty = { ...data, createdAt: new Date() };
+    const result = await propertyCollection.insertOne(newProperty);
+    res.status(201).send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to add property", error });
+  }
+});
+
+// ✅ DELETE property
+app.delete("/properties/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const result = await propertyCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to delete property", error });
+  }
+});
+
+// ✅ UPDATE property
+app.put("/properties/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updatedData = req.body;
+    const result = await propertyCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updatedData }
+    );
+    res.send(result);
+  } catch (error) {
+    res.status(500).send({ message: "Failed to update property", error });
+  }
+});
+
+// ✅ Start server
+app.listen(port, () => {
+  console.log(`🚀 Server is running on port ${port}`);
+});
