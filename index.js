@@ -1,9 +1,9 @@
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-
 const app = express();
 const port = process.env.PORT || 3000;
+require("dotenv").config()
 
 // Middleware
 app.use(cors());
@@ -11,7 +11,7 @@ app.use(express.json());
 
 // MongoDB URI
 const uri =
-  "mongodb+srv://homenest-user:MLruA28AS82UtPHf@cluster0.urdzboc.mongodb.net/?appName=Cluster0";
+  `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.urdzboc.mongodb.net/?appName=Cluster0`;
 
 // MongoDB client setup
 const client = new MongoClient(uri, {
@@ -24,7 +24,7 @@ const client = new MongoClient(uri, {
 
 // Root route
 app.get("/", (req, res) => {
-  res.send("🏠 HomeNest Server is Running...");
+  res.send("HomeNest Server is Running...");
 });
 
 async function run() {
@@ -118,7 +118,7 @@ async function run() {
       res.send(result);
     });
 
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("🚀 Pinged your deployment. MongoDB Connected!");
   } catch (error) {
     console.error("❌ Database Connection Error:", error);
