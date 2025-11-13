@@ -24,6 +24,12 @@ const client = new MongoClient(uri, {
   },
 });
 
+app.get("/search", (req, res) => {
+  const { q } = req.query;
+  if (!q) return res.status(400).json({ error: "Missing search query" });
+  res.json({ result: `You searched for: ${q}` });
+});
+
 // Root route
 app.get("/", (req, res) => {
   res.send("HomeNest Server is Running...");
