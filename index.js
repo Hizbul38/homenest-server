@@ -35,14 +35,24 @@ async function run() {
 
     console.log("✅ MongoDB Connected Successfully!");
 
-    // ✅ GET all properties (supports sort + email filter)
+    // ✅ GET all properties (Supports: Search + Sort + Email Filter)
     app.get("/properties", async (req, res) => {
       const email = req.query.email;
       const sortBy = req.query.sortBy; // e.g. price, category, location
       const order = req.query.order === "desc" ? -1 : 1;
+      const search = req.query.search || ""; // ✅ Search keyword
 
       let query = {};
-      if (email) query = { userEmail: email };
+
+      // ✅ Filter by logged-in user email
+      if (email) {
+        query.userEmail = email;
+      }
+
+      // ✅ Search by Property Name (Case-insensitive)
+      if (search) {
+        query.propertyName = { $regex: search, $options: "i" };
+      }
 
       let cursor = propertyCollection.find(query);
 
@@ -50,7 +60,7 @@ async function run() {
       if (sortBy) {
         cursor = cursor.sort({ [sortBy]: order });
       } else {
-        cursor = cursor.sort({ createdAt: -1 }); // default: newest first
+        cursor = cursor.sort({ createdAt: -1 }); // Default: newest first
       }
 
       const result = await cursor.toArray();
