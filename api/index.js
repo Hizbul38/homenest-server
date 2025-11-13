@@ -9,10 +9,12 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Middleware
+
 app.use(cors());
 app.use(express.json());
 
 // MongoDB URI
+
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.urdzboc.mongodb.net/?appName=Cluster0`;
 const client = new MongoClient(uri, {
   serverApi: {
@@ -24,7 +26,8 @@ const client = new MongoClient(uri, {
 
 let propertyCollection;
 
-// ✅ Main function to connect DB and start server
+// Main function to connect DB and start server
+
 async function startServer() {
   try {
     await client.connect();
@@ -117,7 +120,8 @@ async function startServer() {
       }
     });
 
-    // ✅ Start server only after DB connection
+    // Start server only after DB connection
+    
     app.listen(port, () => {
       console.log(`🚀 Server is running on port ${port}`);
     });
@@ -127,5 +131,4 @@ async function startServer() {
   }
 }
 
-// Start everything
 startServer();
